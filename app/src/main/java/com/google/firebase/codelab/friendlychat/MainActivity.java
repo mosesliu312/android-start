@@ -29,10 +29,12 @@ import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -42,6 +44,8 @@ import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
 import com.firebase.ui.database.FirebaseRecyclerAdapter;
+import com.firebase.ui.database.FirebaseRecyclerOptions;
+import com.firebase.ui.database.SnapshotParser;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdView;
 import com.google.android.gms.appinvite.AppInvite;
@@ -121,6 +125,10 @@ public class MainActivity extends AppCompatActivity
     private FirebaseAuth mFirebaseAuth;
     private FirebaseUser mFirebaseUser;
 
+    // Firebase instance variables
+    private DatabaseReference mFirebaseDatabaseReference;
+    private FirebaseRecyclerAdapter<FriendlyMessage,MessageViewHolder> mFirebaseAdapter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -157,8 +165,43 @@ public class MainActivity extends AppCompatActivity
         mLinearLayoutManager.setStackFromEnd(true);
         mMessageRecyclerView.setLayoutManager(mLinearLayoutManager);
 
-        mProgressBar.setVisibility(ProgressBar.INVISIBLE);
+        //mProgressBar.setVisibility(ProgressBar.INVISIBLE);
+        //new child entries
+        mFirebaseDatabaseReference = FirebaseDatabase.getInstance().getReference();
+        SnapshotParser<FriendlyMessage> parser = new SnapshotParser<FriendlyMessage>() {
+            @NonNull
+            @Override
+            public FriendlyMessage parseSnapshot(@NonNull DataSnapshot dataSnapshot) {
+                FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
+                if (friendlyMessage != null) {
+                    friendlyMessage.setId(dataSnapshot.getKey());
+                }
+                return friendlyMessage;
+            }
+        };
 
+        DatabaseReference messageRef = mFirebaseDatabaseReference.child(MESSAGES_CHILD);
+        FirebaseRecyclerOptions<FriendlyMessage> options =
+                new FirebaseRecyclerOptions.Builder<FriendlyMessage>()
+                .setQuery(messageRef,parser)
+                .build();
+        mFirebaseAdapter = new FirebaseRecyclerAdapter<FriendlyMessage, MessageViewHolder>(options) {
+            @Override
+            public MessageViewHolder onCreateViewHolder(ViewGroup viewGroup,int i){
+                LayoutInflater inflater = LayoutInflater.from(viewGroup.getContext());
+                return new MessageViewHolder(inflater.inflate(R.layout.item_message,viewGroup,false));
+            }
+            @Override
+            protected void onBindViewHolder(@NonNull MessageViewHolder holder, int position, @NonNull FriendlyMessage model) {
+
+            }
+
+            @NonNull
+            @Override
+            public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                return null;
+            }
+        }
         mMessageEditText = (EditText) findViewById(R.id.messageEditText);
         mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(mSharedPreferences
                 .getInt(CodelabPreferences.FRIENDLY_MSG_LENGTH, DEFAULT_MSG_LENGTH_LIMIT))});
