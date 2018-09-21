@@ -127,6 +127,10 @@ public class MainActivity extends AppCompatActivity
     private DatabaseReference mFirebaseDatabaseReference;
     private FirebaseRecyclerAdapter<FriendlyMessage,MessageViewHolder> mFirebaseAdapter;
     private FirebaseRemoteConfig mFirebaseRemoteConfig;
+    private FirebaseAnalytics mFirebaseAnalytics;
+
+    //Ads
+    private AdView mAdView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -139,6 +143,9 @@ public class MainActivity extends AppCompatActivity
         //Initialize Firebase Auth
         mFirebaseAuth = FirebaseAuth.getInstance();
         mFirebaseUser = mFirebaseAuth.getCurrentUser();
+
+        //Initialize firebase Track User Flows
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
 
         if (mFirebaseUser==null) {
             //Not signed in,launch the sign In activity
@@ -338,6 +345,11 @@ public class MainActivity extends AppCompatActivity
                 startActivityForResult(intent, REQUEST_IMAGE);
             }
         });
+
+        //For Ads
+        mAdView = (AdView) findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
     }
 
     // Fetch the config to determine the allowed length of messages.
@@ -393,6 +405,9 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onPause() {
+        if (mAdView != null) {
+            mAdView.pause();
+        }
         mFirebaseAdapter.stopListening();
         super.onPause();
     }
@@ -401,10 +416,16 @@ public class MainActivity extends AppCompatActivity
     public void onResume() {
         super.onResume();
         mFirebaseAdapter.startListening();
+        if (mAdView != null) {
+            mAdView.resume();
+        }
     }
 
     @Override
     public void onDestroy() {
+        if (mAdView != null) {
+            mAdView.destroy();
+        }
         super.onDestroy();
     }
 
@@ -418,6 +439,9 @@ public class MainActivity extends AppCompatActivity
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.invite_menu:
+                sendInvitation();
+                return true;
             case R.id.fresh_config_menu:
                 fetchConfig();
                 return true;
@@ -477,6 +501,25 @@ public class MainActivity extends AppCompatActivity
                             });
                 }
             }
+        } else if (requestCode == REQUEST_INVITE) {
+            if (resultCode == RESULT_OK) {
+                Bundle payload = new Bundle();
+                payload.putString(FirebaseAnalytics.Param.VALUE, "sent");
+                mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SHARE,
+                        payload);
+                // Check how many invitations were sent and log.
+                String[] ids = AppInviteInvitation.getInvitationIds(resultCode,
+                        data);
+                Log.d(TAG, "Invitations sent: " + ids.length);
+            } else {
+                Bundle payload = new Bundle();
+                payload.putString(FirebaseAnalytics.Param.VALUE, "not sent");
+                mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SHARE,
+                        payload);
+                // Sending failed or it was canceled, show failure message to
+                // the user
+                Log.d(TAG, "Failed to send invitation.");
+            }
         }
     }
 
@@ -525,6 +568,14 @@ public class MainActivity extends AppCompatActivity
                 .setObject(friendlyMessage.getName(), MESSAGE_URL.concat(friendlyMessage.getId()))
                 .setMetadata(new Action.Metadata.Builder().setUpload(false))
                 .build();
+    }
+
+    private void sendInvitation(){
+        Intent intent = new AppInviteInvitation.IntentBuilder(getString(R.string.invitation_title))
+                .setMessage(getString(R.string.invitation_message))
+                .setCallToActionText(getString(R.string.invitation_cta))
+                .build();
+        startActivityForResult(intent,REQUEST_INVITE);
     }
 
 }
